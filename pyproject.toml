@@ -1,0 +1,37 @@
+[project]
+name = "solver-runner-client"
+version = "0.0.1"
+authors = [
+  { name="Julien Dubost", email="julien.dubost@planny.ch" },
+]
+description = "A small client to submit solver payload to the server and get the logs in realtime"
+readme = "README.md"
+requires-python = ">=3.7"
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: OS Independent",
+]
+
+[project.urls]
+"Homepage" = "https://github.com/planny-dev-org/solver-runner-client/"
+"Bug Tracker" = "https://github.com/planny-dev-org/solver-runner-client/issues"
+
+
+
+
+[tool.poetry]
+name = "solver-runner-client"
+version = "0.1.0"
+description = ""
+authors = ["Julien Dubost <julien.dubost@planny.ch>"]
+readme = "README.md"
+packages = [{include = "solver_runner_client"}]
+
+[tool.poetry.dependencies]
+python = "^3.11"
+
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"
