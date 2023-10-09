@@ -16,9 +16,10 @@ parser = argparse.ArgumentParser(
     "RUNNER_SERVER_CERT_PATH => if not set, an unsecured socket will be used\n",
 )
 parser.add_argument("mps_file_path", help=".mps file to run")
+parser.add_argument("--parameters_file_path", help="optional JSON parameters file")
 
 
-def send(mps_file_path):
+def send(mps_file_path, json_parameters_file_path):
     host = os.environ.get("RUNNER_SERVER_HOSTNAME", socket.gethostname())
     port = int(os.environ.get("RUNNER_SERVER_PORT", 5050))
     cert_path = os.environ.get("RUNNER_SERVER_CERT_PATH")
@@ -30,9 +31,13 @@ def send(mps_file_path):
         context.load_verify_locations(cert_path)
         client_socket = context.wrap_socket(sock, server_hostname=host)
 
+    if json_parameters_file_path:
+        parameters_file = open(json_parameters_file_path, "rb")
+        ret = client_socket.sendfile(parameters_file)
+        print(f"sent {ret} bytes of .json parameters file data")
     input_file = open(mps_file_path, "rb")
     ret = client_socket.sendfile(input_file)
-    print(f"sent {ret} bytes of data")
+    print(f"sent {ret} bytes of .mps file data")
     data = True
     all_message = ""
     while data:
@@ -57,5 +62,5 @@ def send(mps_file_path):
 
 if __name__ == "__main__":
     arguments = parser.parse_args()
-    output_file_path = send(arguments.mps_file_path)
+    output_file_path = send(arguments.mps_file_path, arguments.parameters_file_path)
     print(f"output file path written to {output_file_path}")
