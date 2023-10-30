@@ -29,7 +29,7 @@ readme = "README.md"
 packages = [{include = "solver_runner_client"}]
 
 [tool.poetry.dependencies]
-python = "^3.11"
+python = ">=3.9"
 
 
 [build-system]
