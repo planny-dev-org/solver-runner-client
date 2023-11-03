@@ -5,6 +5,11 @@ import tempfile
 import sys
 import ssl
 import json
+import time
+import tarfile
+
+END_SEQUENCE = b"__ENDSEQUENCE__"
+
 
 parser = argparse.ArgumentParser(
     prog="client.py",
@@ -15,11 +20,11 @@ parser = argparse.ArgumentParser(
     "RUNNER_SERVER_PORT => default to 5050\n"
     "RUNNER_SERVER_CERT_PATH => if not set, an unsecured socket will be used\n",
 )
-parser.add_argument("mps_file_path", help=".mps file to run")
-parser.add_argument("--parameters_file_path", help="optional JSON parameters file")
+parser.add_argument("mps_file_path", help="file to run (.mps)")
+parser.add_argument("--parameters_file_path", help="optional parameters file (.prm)")
 
 
-def send(mps_file_path, json_parameters_file_path):
+def send(mps_file_path, prm_file_path):
     host = os.environ.get("RUNNER_SERVER_HOSTNAME", socket.gethostname())
     port = int(os.environ.get("RUNNER_SERVER_PORT", 5050))
     cert_path = os.environ.get("RUNNER_SERVER_CERT_PATH")
@@ -31,13 +36,16 @@ def send(mps_file_path, json_parameters_file_path):
         context.load_verify_locations(cert_path)
         client_socket = context.wrap_socket(sock, server_hostname=host)
 
-    if json_parameters_file_path:
-        parameters_file = open(json_parameters_file_path, "rb")
-        ret = client_socket.sendfile(parameters_file)
-        print(f"sent {ret} bytes of .json parameters file data")
-    input_file = open(mps_file_path, "rb")
-    ret = client_socket.sendfile(input_file)
-    print(f"sent {ret} bytes of .mps file data")
+    # create a tarball
+    archive = tarfile.open("export.tar.gz", "w:gz")
+    archive.add(mps_file_path)
+    if prm_file_path:
+        archive.add(prm_file_path)
+    archive.close()
+    archive = open("export.tar.gz", "rb")
+    ret = client_socket.sendfile(archive)
+    print(f"sent {ret} bytes of archive file data")
+    client_socket.sendall(END_SEQUENCE)
     data = True
     all_message = ""
     while data:
