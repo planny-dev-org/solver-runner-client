@@ -1,10 +1,14 @@
+import io
 import os
 import argparse
 import socket
 import tempfile
-import sys
 import ssl
-import json
+import tarfile
+import datetime
+
+END_SEQUENCE = b"__ENDSEQUENCE__"
+
 
 parser = argparse.ArgumentParser(
     prog="client.py",
@@ -15,11 +19,11 @@ parser = argparse.ArgumentParser(
     "RUNNER_SERVER_PORT => default to 5050\n"
     "RUNNER_SERVER_CERT_PATH => if not set, an unsecured socket will be used\n",
 )
-parser.add_argument("mps_file_path", help=".mps file to run")
-parser.add_argument("--parameters_file_path", help="optional JSON parameters file")
+parser.add_argument("mps_file_path", help="file to run (.mps)")
+parser.add_argument("--parameters_file_path", help="optional parameters file (.prm)")
 
 
-def send(mps_file_path, json_parameters_file_path):
+def send(mps_file_path, prm_file_path):
     host = os.environ.get("RUNNER_SERVER_HOSTNAME", socket.gethostname())
     port = int(os.environ.get("RUNNER_SERVER_PORT", 5050))
     cert_path = os.environ.get("RUNNER_SERVER_CERT_PATH")
@@ -31,33 +35,37 @@ def send(mps_file_path, json_parameters_file_path):
         context.load_verify_locations(cert_path)
         client_socket = context.wrap_socket(sock, server_hostname=host)
 
-    if json_parameters_file_path:
-        parameters_file = open(json_parameters_file_path, "rb")
-        ret = client_socket.sendfile(parameters_file)
-        print(f"sent {ret} bytes of .json parameters file data")
-    input_file = open(mps_file_path, "rb")
-    ret = client_socket.sendfile(input_file)
-    print(f"sent {ret} bytes of .mps file data")
+    # create a temp dir
+    tmp_dir = tempfile.mkdtemp(
+        prefix=datetime.datetime.now().strftime("%y_%m_%dT%H_%M_%S")
+    )
+    # create tarball
+    archive = tarfile.open(os.path.join(tmp_dir, "inputs.tar.gz"), "w:gz")
+    # jump into each input files directory to avoid including paths in the tarball
+    os.chdir(os.path.dirname(os.path.abspath(mps_file_path)))
+    archive.add(os.path.basename(mps_file_path))
+    if prm_file_path:
+        os.chdir(os.path.dirname(os.path.abspath(prm_file_path)))
+        archive.add(os.path.basename(prm_file_path))
+        archive.add(prm_file_path)
+    archive.close()
+    os.chdir(tmp_dir)
+    ret = client_socket.sendfile(open("inputs.tar.gz", "rb"))
+    print(f"sent {ret} bytes of archive file data")
+    client_socket.sendall(END_SEQUENCE)
     data = True
-    all_message = ""
+    all_message = b""
     while data:
-        data = client_socket.recv(1024).decode()  # receive response
-        sys.stdout.write(data)  # show in terminal
+        data = client_socket.recv(1024)  # receive response
         all_message += data
 
-    output_file_content = all_message.split("output:")[-1]
-
-    output_file = tempfile.NamedTemporaryFile(suffix=".json", delete=False)
-    output_file.close()
-    try:
-        json_content = json.loads(output_file_content)
-        json.dump(
-            json_content, open(output_file.name, "w"), indent=2, ensure_ascii=False
-        )
-    except Exception as exc:
-        print(f"error while storing json file: {exc}")
+    output_file_content = all_message.split(b"output:")[-1]
+    buffer = io.BytesIO(output_file_content)
+    buffer.seek(0)
+    archive = tarfile.open(fileobj=buffer, mode="r:gz")
+    archive.extractall(tmp_dir)
     client_socket.close()
-    return output_file.name
+    return os.path.join(tmp_dir, archive.getnames()[0])
 
 
 if __name__ == "__main__":

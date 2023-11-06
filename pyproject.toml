@@ -30,6 +30,7 @@ packages = [{include = "solver_runner_client"}]
 
 [tool.poetry.dependencies]
 python = ">=3.9"
+black = ">=23.1.0"
 
 
 [build-system]
