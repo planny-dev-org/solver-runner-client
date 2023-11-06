@@ -1,3 +1,4 @@
+import sys
 import io
 import os
 import argparse
@@ -54,9 +55,16 @@ def send(mps_file_path, prm_file_path):
     print(f"sent {ret} bytes of archive file data")
     client_socket.sendall(END_SEQUENCE)
     data = True
+    output_sequence = False
     all_message = b""
     while data:
         data = client_socket.recv(1024)  # receive response
+        if not output_sequence:
+            if b"output:" in data:
+                output_sequence = True
+                sys.stdout.write(data.split(b"output:")[0].decode())
+            else:
+                sys.stdout.write(data.decode())
         all_message += data
 
     output_file_content = all_message.split(b"output:")[-1]
