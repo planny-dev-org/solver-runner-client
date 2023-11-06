@@ -36,20 +36,8 @@ send(mps_file_path)
 ## Add a parameters file
 
 .mps file does not contain solver parameters, for example time limit.
-These parameters can be transmitted using a JSON file using following structure: 
-
-```json
-{
-  "Params": {
-    "TimeLimit": 15
-  }
-}
-```
-
-This will inform the remote execution to set `model.Params.TimeLimit = 15`
-
-Then add JSON file to command line:
+These parameters can be transmitted using a .prm:
 
 ```shell
-python client.py </path/to/file.mps> --parameters_file_path <path/to/file.json>
+python client.py </path/to/file.mps> --parameters_file_path <path/to/file.prm>
 ```
