@@ -54,16 +54,17 @@ def send(mps_file_path, prm_file_path):
     ret = client_socket.sendfile(open("inputs.tar.gz", "rb"))
     print(f"sent {ret} bytes of archive file data")
     client_socket.sendall(END_SEQUENCE)
-    data = b"data"
+    data = True
+    output_sequence = False
     all_message = b""
-    while data and END_SEQUENCE not in data:
+    while data:
         data = client_socket.recv(1024)  # receive response
-        printable_data = data.split(b"output:")[0]
-        try:
-            sys.stdout.write(printable_data.decode())
-        except UnicodeDecodeError:
-            # avoid printing binary data
-            pass
+        if not output_sequence:
+            if b"output:" in data:
+                output_sequence = True
+                sys.stdout.write(data.split(b"output:")[0].decode())
+            else:
+                sys.stdout.write(data.decode())
         all_message += data
 
     output_file_content = all_message.split(b"output:")[-1]
