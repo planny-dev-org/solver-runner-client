@@ -1,3 +1,4 @@
+import sys
 import io
 import os
 import argparse
@@ -53,10 +54,16 @@ def send(mps_file_path, prm_file_path):
     ret = client_socket.sendfile(open("inputs.tar.gz", "rb"))
     print(f"sent {ret} bytes of archive file data")
     client_socket.sendall(END_SEQUENCE)
-    data = True
+    data = b"data"
     all_message = b""
-    while data:
+    while data and END_SEQUENCE not in data:
         data = client_socket.recv(1024)  # receive response
+        printable_data = data.split(b"output:")[0]
+        try:
+            sys.stdout.write(printable_data.decode())
+        except UnicodeDecodeError:
+            # avoid printing binary data
+            pass
         all_message += data
 
     output_file_content = all_message.split(b"output:")[-1]
