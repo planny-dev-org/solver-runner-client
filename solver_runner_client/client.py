@@ -18,7 +18,9 @@ parser = argparse.ArgumentParser(
     "Following env vars must be set:\n"
     "RUNNER_SERVER_HOSTNAME => default to socket.gethostname()\n"
     "RUNNER_SERVER_PORT => default to 5050\n"
-    "RUNNER_SERVER_CERT_PATH => if not set, an unsecured socket will be used\n",
+    "RUNNER_SERVER_CERT_PATH => path to server certificate file. If not set, an unsecured socket will be used\n"
+    "RUNNER_CLIENT_CERT_PATH => path to client certificate file"
+    "RUNNER_CLIENT_KEY_PATH => path to client certificate key file\n",
 )
 parser.add_argument("mps_file_path", help="file to run (.mps)")
 parser.add_argument("--parameters_file_path", help="optional parameters file (.prm)")
@@ -27,13 +29,16 @@ parser.add_argument("--parameters_file_path", help="optional parameters file (.p
 def send(mps_file_path, prm_file_path):
     host = os.environ.get("RUNNER_SERVER_HOSTNAME", socket.gethostname())
     port = int(os.environ.get("RUNNER_SERVER_PORT", 5050))
-    cert_path = os.environ.get("RUNNER_SERVER_CERT_PATH")
+    server_cert_path = os.environ.get("RUNNER_SERVER_CERT_PATH")
+    client_cert_path = os.environ.get("RUNNER_CLIENT_CERT_PATH")
+    key_path = os.environ.get("RUNNER_CLIENT_KEY_PATH")
     sock = socket.socket()  # instantiate
     sock.connect((host, port))  # connect to the server
     client_socket = sock
-    if cert_path:
+    if server_cert_path:
         context = ssl.create_default_context()
-        context.load_verify_locations(cert_path)
+        context.load_verify_locations(server_cert_path)
+        context.load_cert_chain(client_cert_path, key_path)
         client_socket = context.wrap_socket(sock, server_hostname=host)
 
     # create a temp dir
