@@ -65,6 +65,18 @@ send(mps_file_path)
 .mps file does not contain solver parameters, for example time limit.
 These parameters can be transmitted using a .prm:
 
+## Add a relaxation file
+
+In order to use the feasibility relaxation feature, a JSON relaxation file is expected with this format:
+```json
+{
+  "constraint_prefix": 10
+}
+```
+
+Where `constraint_prefix` is the prefix of the constraints to relax and value `10` is the weight.
+See infeasability assistant for more details.
+
 ```shell
 python client.py </path/to/file.mps> --parameters_file_path <path/to/file.prm>
 ```
