@@ -88,5 +88,5 @@ def send(mps_file_path, prm_file_path, relaxation_file_path):
 
 if __name__ == "__main__":
     arguments = parser.parse_args()
-    output_file_path = send(arguments.mps_file_path, arguments.parameters_file_path)
+    output_file_path = send(arguments.mps_file_path, arguments.parameters_file_path, arguments.relaxation_file_path)
     print(f"output file path written to {output_file_path}")
