@@ -25,9 +25,10 @@ parser = argparse.ArgumentParser(
 parser.add_argument("mps_file_path", help="file to run (.mps)")
 parser.add_argument("--parameters_file_path", help="optional parameters file (.prm)")
 parser.add_argument("--relaxation_file_path", help="optional relaxation file (.json)")
+parser.add_argument("--mst_file_path", help="optional mip start file (.mst)")
 
 
-def send(mps_file_path, prm_file_path, relaxation_file_path):
+def send(mps_file_path, prm_file_path=None, relaxation_file_path=None, mst_file_path=None):
     host = os.environ.get("RUNNER_SERVER_HOSTNAME", socket.gethostname())
     port = int(os.environ.get("RUNNER_SERVER_PORT", 5050))
     server_cert_path = os.environ.get("RUNNER_SERVER_CERT_PATH")
@@ -59,6 +60,10 @@ def send(mps_file_path, prm_file_path, relaxation_file_path):
         os.chdir(os.path.dirname(os.path.abspath(prm_file_path)))
         archive.add(os.path.basename(relaxation_file_path))
         archive.add(relaxation_file_path)
+    if mst_file_path:
+        os.chdir(os.path.dirname(os.path.abspath(mst_file_path)))
+        archive.add(os.path.basename(mst_file_path))
+        archive.add(mst_file_path)
     archive.close()
     os.chdir(tmp_dir)
     ret = client_socket.sendfile(open("inputs.tar.gz", "rb"))
@@ -88,5 +93,10 @@ def send(mps_file_path, prm_file_path, relaxation_file_path):
 
 if __name__ == "__main__":
     arguments = parser.parse_args()
-    output_file_path = send(arguments.mps_file_path, arguments.parameters_file_path, arguments.relaxation_file_path)
+    output_file_path = send(
+        arguments.mps_file_path,
+        arguments.parameters_file_path,
+        arguments.relaxation_file_path,
+        arguments.mst_file_path,
+    )
     print(f"output file path written to {output_file_path}")

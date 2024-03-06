@@ -56,8 +56,12 @@ Or inside a python shell or program:
 ```python
 from solver_runner_client.client import send
 
-mps_file_path = "/tmp/john.mps"
+mps_file_path = "/tmp/model.mps"
 send(mps_file_path)
+
+# using all possible files that can be sent
+send(mps_file_path, prm_file_path="/tmp/model.prm", relaxation_file_path="/tmp/relaxation.json", mst_file_path="/tmp/model.mst")
+
 ```
 
 ## Add a parameters file
