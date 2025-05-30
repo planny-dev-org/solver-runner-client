@@ -23,12 +23,16 @@ parser = argparse.ArgumentParser(
     "RUNNER_CLIENT_KEY_PATH => path to client certificate key file\n",
 )
 parser.add_argument("mps_file_path", help="file to run (.mps)")
-parser.add_argument("--parameters_file_path", help="optional parameters file (.prm)")
+parser.add_argument(
+    "--parameters_file_paths",
+    nargs="+",
+    help="optional parameter files (*main.prm or *env_N.prm where N is an integer from 0 to 2)",
+)
 parser.add_argument("--relaxation_file_path", help="optional relaxation file (.json)")
 parser.add_argument("--mst_file_path", help="optional mip start file (.mst)")
 
 
-def send(mps_file_path, prm_file_path=None, relaxation_file_path=None, mst_file_path=None):
+def send(input_file_abs_paths):
     host = os.environ.get("RUNNER_SERVER_HOSTNAME", socket.gethostname())
     port = int(os.environ.get("RUNNER_SERVER_PORT", 5050))
     server_cert_path = os.environ.get("RUNNER_SERVER_CERT_PATH")
@@ -50,30 +54,23 @@ def send(mps_file_path, prm_file_path=None, relaxation_file_path=None, mst_file_
     # create tarball
     archive = tarfile.open(os.path.join(tmp_dir, "inputs.tar.gz"), "w:gz")
     # jump into each input files directory to avoid including paths in the tarball
-    os.chdir(os.path.dirname(os.path.abspath(mps_file_path)))
-    archive.add(os.path.basename(mps_file_path))
-    if prm_file_path:
-        os.chdir(os.path.dirname(os.path.abspath(prm_file_path)))
-        archive.add(os.path.basename(prm_file_path))
-        archive.add(prm_file_path)
-    if relaxation_file_path:
-        os.chdir(os.path.dirname(os.path.abspath(prm_file_path)))
-        archive.add(os.path.basename(relaxation_file_path))
-        archive.add(relaxation_file_path)
-    if mst_file_path:
-        os.chdir(os.path.dirname(os.path.abspath(mst_file_path)))
-        archive.add(os.path.basename(mst_file_path))
-        archive.add(mst_file_path)
+    os.chdir(os.path.dirname(os.path.abspath(input_file_abs_paths[0])))
+    for input_file_abs_path in input_file_abs_paths:
+        archive.add(os.path.basename(input_file_abs_path))
+
     archive.close()
     os.chdir(tmp_dir)
+    print(f"sending input archive to server ...")
     ret = client_socket.sendfile(open("inputs.tar.gz", "rb"))
     print(f"sent {ret} bytes of archive file data")
     client_socket.sendall(END_SEQUENCE)
     data = True
     output_sequence = False
     all_message = b""
+
+    # receive and print data received from remote server
     while data:
-        data = client_socket.recv(1024)  # receive response
+        data = client_socket.recv(1024)
         if not output_sequence:
             if b"output:" in data:
                 output_sequence = True
@@ -88,15 +85,27 @@ def send(mps_file_path, prm_file_path=None, relaxation_file_path=None, mst_file_
     archive = tarfile.open(fileobj=buffer, mode="r:gz")
     archive.extractall(tmp_dir)
     client_socket.close()
-    return os.path.join(tmp_dir, archive.getnames()[0])
+    return os.path.join(tmp_dir, archive.getnames()[0]), os.path.join(
+        tmp_dir, archive.getnames()[1]
+    )
 
 
 if __name__ == "__main__":
     arguments = parser.parse_args()
-    output_file_path = send(
+
+    # flatten file paths
+    file_paths = [
         arguments.mps_file_path,
-        arguments.parameters_file_path,
-        arguments.relaxation_file_path,
-        arguments.mst_file_path,
-    )
+    ]
+    if arguments.relaxation_file_path:
+        file_paths.append(arguments.relaxation_file_path)
+    if arguments.mst_file_path:
+        file_paths.append(arguments.mst_file_path)
+
+    if arguments.parameters_file_paths is not None:
+        for file_path in arguments.parameters_file_paths:
+            file_paths.append(file_path)
+
+    output_file_path, mst_file_path = send(file_paths)
     print(f"output file path written to {output_file_path}")
+    print(f"mst file path written to {mst_file_path}")
