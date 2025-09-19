@@ -86,7 +86,7 @@ output_json_filepath, output_mst_filepath = client.send(
         "/tmp/model.relaxation.json"  # optional, see format below
     ]
 )
-output = json.load(output_json_filepath)
+output = json.load(open(output_json_filepath))
 ```
 
 ## relaxation file
