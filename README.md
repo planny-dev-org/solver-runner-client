@@ -56,30 +56,48 @@ Or inside a python shell or program:
 ```python
 from solver_runner_client.client import send
 
-mps_file_path = "/tmp/model.mps"
-send(mps_file_path)
+# using a model with 3 multi objectives
+env0 = model.getMultiobjEnv(0)
+env1 = model.getMultiobjEnv(1)
+env2 = model.getMultiobjEnv(2)
+env0.setParam("TimeLimit", 1) 
+env1.setParam("TimeLimit", 1)
+env2.setParam("TimeLimit", 1)
 
-# using all possible files that can be sent
-send(mps_file_path, prm_file_path="/tmp/model.prm", relaxation_file_path="/tmp/relaxation.json", mst_file_path="/tmp/model.mst")
+# usual way to run gurobi
+model.optimize()
+model.write("output.json")
+output = json.load("output.json")
 
+# using client
+model.write("/tmp/model.mps")
+model.write("/tmp/model.main.prm")  # main.prm suffix is mandatory, it informs runner this is the main params
+env0.writeParams("/tmp/model.env_0.prm")  # env_0.prm suffix is mandatory, it informs solver this is params for env 0
+env1.writeParams("/tmp/model.env_1.prm")  # env_1.prm suffix is mandatory, it informs solver this is params for env 1
+env2.writeParams("/tmp/model.env_2.prm")  # env_2.prm suffix is mandatory, it informs solver this is params for env 2
+output = client.send(
+    [
+        "/tmp/model.mps",
+        "/tmp/model.prm",  # optional
+        "/tmp/model.env_0.prm"  # optional
+        "/tmp/model.env_1.prm"  # optional
+        "/tmp/model.env_2.prm"  # optional
+        "/tmp/model.mst",  # optional
+        "/tmp/model.relaxation.json"  # optional, see format below
+    ]
+)
 ```
 
-## Add a parameters file
-
-.mps file does not contain solver parameters, for example time limit.
-These parameters can be transmitted using a .prm:
-
-## Add a relaxation file
+## relaxation file
 
 In order to use the feasibility relaxation feature, a JSON relaxation file is expected with this format:
 ```json
 {
-  "constraint_prefix": 10
+  "constraint_regexp": 10
 }
 ```
 
-Where `constraint_prefix` is the prefix of the constraints to relax and value `10` is the weight.
-See infeasability assistant for more details.
+Where `constraint_regexp` is the regular expression that will be used to match constraints names and value `10` is the relaxation weight of these constraints.
 
 ```shell
 python client.py </path/to/file.mps> --parameters_file_path <path/to/file.prm>
