@@ -75,7 +75,7 @@ model.write("/tmp/model.main.prm")  # main.prm suffix is mandatory, it informs r
 env0.writeParams("/tmp/model.env_0.prm")  # env_0.prm suffix is mandatory, it informs solver this is params for env 0
 env1.writeParams("/tmp/model.env_1.prm")  # env_1.prm suffix is mandatory, it informs solver this is params for env 1
 env2.writeParams("/tmp/model.env_2.prm")  # env_2.prm suffix is mandatory, it informs solver this is params for env 2
-output = client.send(
+output_json_filepath, output_mst_filepath = client.send(
     [
         "/tmp/model.mps",
         "/tmp/model.prm",  # optional
@@ -86,6 +86,7 @@ output = client.send(
         "/tmp/model.relaxation.json"  # optional, see format below
     ]
 )
+output = json.load(output_json_filepath)
 ```
 
 ## relaxation file
