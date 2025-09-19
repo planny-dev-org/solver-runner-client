@@ -83,26 +83,21 @@ output = client.send(
         "/tmp/model.env_1.prm"  # optional
         "/tmp/model.env_2.prm"  # optional
         "/tmp/model.mst",  # optional
+        "/tmp/model.relaxation.json"  # optional, see format below
     ]
 )
 ```
 
-## Add a parameters file
-
-.mps file does not contain solver parameters, for example time limit.
-These parameters can be transmitted using a .prm:
-
-## Add a relaxation file
+## relaxation file
 
 In order to use the feasibility relaxation feature, a JSON relaxation file is expected with this format:
 ```json
 {
-  "constraint_prefix": 10
+  "constraint_regexp": 10
 }
 ```
 
-Where `constraint_prefix` is the prefix of the constraints to relax and value `10` is the weight.
-See infeasability assistant for more details.
+Where `constraint_regexp` is the regular expression that will be used to match constraints names and value `10` is the relaxation weight of these constraints.
 
 ```shell
 python client.py </path/to/file.mps> --parameters_file_path <path/to/file.prm>
