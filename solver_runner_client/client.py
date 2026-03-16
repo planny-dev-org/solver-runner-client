@@ -77,9 +77,9 @@ def send(input_file_abs_paths):
         if not output_sequence:
             if b"output:" in data:
                 output_sequence = True
-                LOG.info(data.split(b"output:")[0].decode())
+                LOG.info(data.split(b"output:")[0].decode().replace("\n", ""))
             else:
-                LOG.info(data.decode())
+                LOG.info(data.decode().replace("\n", ""))
         all_message += data
 
     output_file_content = all_message.split(b"output:")[-1]
@@ -94,6 +94,7 @@ def send(input_file_abs_paths):
 
 
 if __name__ == "__main__":
+    logging.basicConfig(level=logging.INFO)
     arguments = parser.parse_args()
 
     # flatten file paths
