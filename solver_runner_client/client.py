@@ -63,23 +63,24 @@ def send(input_file_abs_paths):
 
     archive.close()
     os.chdir(tmp_dir)
-    LOG.info(f"sending input archive to server ...")
-    ret = client_socket.sendfile(open("inputs.tar.gz", "rb"))
+    LOG.info("sending input archive to server ...")
+    with open("inputs.tar.gz", "rb") as input_file:
+        ret = client_socket.sendfile(input_file)
     LOG.info(f"sent {ret} bytes of archive file data")
     client_socket.sendall(END_SEQUENCE)
     data = True
     output_sequence = False
     all_message = b""
 
-    # receive and print data received from remote server
+    # receive and log data received from remote server
     while data:
         data = client_socket.recv(1024)
         if not output_sequence:
             if b"output:" in data:
                 output_sequence = True
-                LOG.info(data.split(b"output:")[0].decode().replace("\n", ""))
+                LOG.info(data.split(b"output:")[0].decode().rstrip("\n"))
             else:
-                LOG.info(data.decode().replace("\n", ""))
+                LOG.info(data.decode().rstrip("\n"))
         all_message += data
 
     output_file_content = all_message.split(b"output:")[-1]
@@ -113,3 +114,7 @@ if __name__ == "__main__":
 
     LOG.info(f"output file path written to {output_file_path}")
     LOG.info(f"mst file path written to {mst_file_path}")
+
+    # Also print final paths to stdout for easy use in pipelines.
+    print(output_file_path)
+    print(mst_file_path)
