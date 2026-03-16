@@ -103,3 +103,44 @@ Where `constraint_regexp` is the regular expression that will be used to match c
 ```shell
 python client.py </path/to/file.mps> --parameters_file_path <path/to/file.prm>
 ```
+
+
+## Custom logging
+
+To get client logs inside calling app, use logging capabilities. 
+This is useful for example to propagate solver-runner-client logs to redis stream
+
+Here is the example code that: 
+- create a customer logging handler (`MyHandler`)
+- remove all previous root logger handlers
+- add customer logging handler to solver runner client logger
+- send a `model.mps` to client and display execution logs received on custom handler `handle` method
+
+```python
+import os
+import logging
+
+from solver_runner_client import client
+
+logging.basicConfig(level=logging.INFO)
+
+class MyHandler(logging.StreamHandler):
+
+    def handle(self, record: logging.LogRecord) -> bool:
+        # add the redis client send here
+        print(f"handle record -> {record}")  # just to show it works
+        return True
+
+
+# remove previous handlers
+while logging.root.handlers:
+    logging.root.removeHandler(logging.root.handlers[0])
+
+# add custom logger
+client_logger = logging.getLogger("solver_runner_client.client")
+client_logger.addHandler(MyHandler())
+
+# test MyHandler receive client logs and handle it
+client.send([os.path.join(os.getcwd(), "model.mps")])
+```
+
