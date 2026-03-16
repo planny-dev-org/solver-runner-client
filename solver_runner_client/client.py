@@ -7,6 +7,9 @@ import tempfile
 import ssl
 import tarfile
 import datetime
+import logging
+
+LOG = logging.getLogger(__name__)
 
 END_SEQUENCE = b"__ENDSEQUENCE__"
 
@@ -60,23 +63,24 @@ def send(input_file_abs_paths):
 
     archive.close()
     os.chdir(tmp_dir)
-    print(f"sending input archive to server ...")
-    ret = client_socket.sendfile(open("inputs.tar.gz", "rb"))
-    print(f"sent {ret} bytes of archive file data")
+    LOG.info("sending input archive to server ...")
+    with open("inputs.tar.gz", "rb") as input_file:
+        ret = client_socket.sendfile(input_file)
+    LOG.info(f"sent {ret} bytes of archive file data")
     client_socket.sendall(END_SEQUENCE)
     data = True
     output_sequence = False
     all_message = b""
 
-    # receive and print data received from remote server
+    # receive and log data received from remote server
     while data:
         data = client_socket.recv(1024)
         if not output_sequence:
             if b"output:" in data:
                 output_sequence = True
-                sys.stdout.write(data.split(b"output:")[0].decode())
+                LOG.info(data.split(b"output:")[0].decode().rstrip("\n"))
             else:
-                sys.stdout.write(data.decode())
+                LOG.info(data.decode().rstrip("\n"))
         all_message += data
 
     output_file_content = all_message.split(b"output:")[-1]
@@ -91,6 +95,7 @@ def send(input_file_abs_paths):
 
 
 if __name__ == "__main__":
+    logging.basicConfig(level=logging.INFO)
     arguments = parser.parse_args()
 
     # flatten file paths
@@ -101,11 +106,15 @@ if __name__ == "__main__":
         file_paths.append(arguments.relaxation_file_path)
     if arguments.mst_file_path:
         file_paths.append(arguments.mst_file_path)
-
     if arguments.parameters_file_paths is not None:
         for file_path in arguments.parameters_file_paths:
             file_paths.append(file_path)
 
     output_file_path, mst_file_path = send(file_paths)
-    print(f"output file path written to {output_file_path}")
-    print(f"mst file path written to {mst_file_path}")
+
+    LOG.info(f"output file path written to {output_file_path}")
+    LOG.info(f"mst file path written to {mst_file_path}")
+
+    # Also print final paths to stdout for easy use in pipelines.
+    print(output_file_path)
+    print(mst_file_path)
