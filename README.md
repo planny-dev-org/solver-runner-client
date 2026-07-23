@@ -94,11 +94,31 @@ output = json.load(open(output_json_filepath))
 In order to use the feasibility relaxation feature, a JSON relaxation file is expected with this format:
 ```json
 {
-  "constraint_regexp": 10
+  "strategy": 2,
+  "rules": [
+    {
+      "pattern": "min-in-row",
+      "weight": 10
+    },
+    {
+      "pattern": "max-in-row",
+      "weight": 10
+    }
+  ]
 }
 ```
 
-Where `constraint_regexp` is the regular expression that will be used to match constraints names and value `10` is the relaxation weight of these constraints.
+Where `pattern` is the regular expression that will be used to match constraints names and value `10` is the relaxation weight of these constraints.
+
+`strategy` is the relax directive: 
+- 0: no relaxation
+- 1: run IIS computation only
+- 2: run relaxation using minrelax=True on feasRelax call
+- 3: run relaxation using minrelax=False on feasRelax call
+- 4: run relaxation using minrelax=False and re-optimize using original objective
+
+See solver-runner-server for exact implementation.
+
 
 ```shell
 python client.py </path/to/file.mps> --parameters_file_path <path/to/file.prm>
