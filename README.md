@@ -121,7 +121,7 @@ See solver-runner-server for exact implementation.
 
 
 ```shell
-python client.py </path/to/file.mps> --parameters_file_path <path/to/file.prm>
+python client.py </path/to/file.mps> --parameters_file_path <path/to/file.prm> --relaxation_file_path <path/to/file.json>
 ```
 
 
