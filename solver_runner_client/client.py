@@ -35,7 +35,27 @@ parser.add_argument("--relaxation_file_path", help="optional relaxation file (.j
 parser.add_argument("--mst_file_path", help="optional mip start file (.mst)")
 
 
-def send(input_file_abs_paths):
+def send(input_file_abs_paths, *, logger=None, isolate_cwd=False):
+    """
+    Send an execution request to the runner server and return the output paths.
+
+    :param input_file_abs_paths: input files to tar and send (.mps mandatory)
+    :param logger: logger to emit the server's streamed log lines on. Defaults to
+        this module's logger, which is the historical behaviour. Pass a distinct
+        logger to tell two concurrent submissions apart.
+    :param isolate_cwd: when True, build the tarball without changing the process
+        working directory. The default False keeps the historical behaviour,
+        including the fact that send() leaves the CWD inside its temp dir.
+
+        The working directory is process-global state, so the default path cannot
+        be used by two concurrent send() calls in one process: they interleave
+        their chdir() calls and each ends up tarring the other's directory. Pass
+        isolate_cwd=True on *every* concurrent call site. The resulting tarball is
+        equivalent -- entries are flat in both modes -- and as a side benefit
+        input files are no longer required to share a single directory.
+    :return: (output json path, output mst path)
+    """
+    log = logger if logger is not None else LOG
     host = os.environ.get("RUNNER_SERVER_HOSTNAME", socket.gethostname())
     port = int(os.environ.get("RUNNER_SERVER_PORT", 5050))
     server_cert_path = os.environ.get("RUNNER_SERVER_CERT_PATH")
@@ -55,18 +75,29 @@ def send(input_file_abs_paths):
         prefix=datetime.datetime.now().strftime("%y_%m_%dT%H_%M_%S")
     )
     # create tarball
-    archive = tarfile.open(os.path.join(tmp_dir, "inputs.tar.gz"), "w:gz")
-    # jump into each input files directory to avoid including paths in the tarball
-    os.chdir(os.path.dirname(os.path.abspath(input_file_abs_paths[0])))
-    for input_file_abs_path in input_file_abs_paths:
-        archive.add(os.path.basename(input_file_abs_path))
+    archive_path = os.path.join(tmp_dir, "inputs.tar.gz")
+    archive = tarfile.open(archive_path, "w:gz")
+    if isolate_cwd:
+        # arcname reproduces the flat layout the legacy path gets from
+        # chdir + basename, without touching the process working directory
+        for input_file_abs_path in input_file_abs_paths:
+            archive.add(
+                os.path.abspath(input_file_abs_path),
+                arcname=os.path.basename(input_file_abs_path),
+            )
+        archive.close()
+    else:
+        # jump into each input files directory to avoid including paths in the tarball
+        os.chdir(os.path.dirname(os.path.abspath(input_file_abs_paths[0])))
+        for input_file_abs_path in input_file_abs_paths:
+            archive.add(os.path.basename(input_file_abs_path))
 
-    archive.close()
-    os.chdir(tmp_dir)
-    LOG.info("sending input archive to server ...")
-    with open("inputs.tar.gz", "rb") as input_file:
+        archive.close()
+        os.chdir(tmp_dir)
+    log.info("sending input archive to server ...")
+    with open(archive_path, "rb") as input_file:
         ret = client_socket.sendfile(input_file)
-    LOG.info(f"sent {ret} bytes of archive file data")
+    log.info(f"sent {ret} bytes of archive file data")
     client_socket.sendall(END_SEQUENCE)
     data = True
     output_sequence = False
@@ -78,9 +109,9 @@ def send(input_file_abs_paths):
         if not output_sequence:
             if b"output:" in data:
                 output_sequence = True
-                LOG.info(data.split(b"output:")[0].decode().rstrip("\n"))
+                log.info(data.split(b"output:")[0].decode().rstrip("\n"))
             else:
-                LOG.info(data.decode().rstrip("\n"))
+                log.info(data.decode().rstrip("\n"))
         all_message += data
 
     output_file_content = all_message.split(b"output:")[-1]

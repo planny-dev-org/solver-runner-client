@@ -89,6 +89,42 @@ output_json_filepath, output_mst_filepath = client.send(
 output = json.load(open(output_json_filepath))
 ```
 
+## Concurrent submissions
+
+By default `send()` builds its tarball by `chdir()`-ing into the input directory and
+adding files by basename, and it leaves the process working directory inside its own
+temp dir when it returns. The working directory is **process-global**, so two
+concurrent `send()` calls in one process interleave their `chdir()` calls and each
+ends up tarring the other's directory.
+
+Pass `isolate_cwd=True` on every concurrent call site:
+
+```python
+output_json_filepath, output_mst_filepath = client.send(
+    ["/tmp/model.mps", "/tmp/model.main.prm"],
+    isolate_cwd=True,
+)
+```
+
+The resulting tarball is equivalent -- entries are flat in both modes -- and input
+files are no longer required to share a single directory. The default stays `False`
+so existing callers, including any that rely on the working-directory side effect,
+are unaffected.
+
+## Per-call logger
+
+`send()` streams the server's log lines through the module logger
+`solver_runner_client.client`. Pass `logger=` to send one submission's lines
+somewhere else -- useful to tell two concurrent submissions apart:
+
+```python
+probe_logger = logging.getLogger("solver_runner_client.client.probe")
+client.send(paths, logger=probe_logger, isolate_cwd=True)
+```
+
+Handlers attached to `solver_runner_client.client` keep receiving records from the
+child logger through normal logger propagation.
+
 ## relaxation file
 
 In order to use the feasibility relaxation feature, a JSON relaxation file is expected with this format:
