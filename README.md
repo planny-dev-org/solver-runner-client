@@ -89,6 +89,42 @@ output_json_filepath, output_mst_filepath = client.send(
 output = json.load(open(output_json_filepath))
 ```
 
+## Concurrent submissions
+
+By default `send()` builds its tarball by `chdir()`-ing into the input directory and
+adding files by basename, and it leaves the process working directory inside its own
+temp dir when it returns. The working directory is **process-global**, so two
+concurrent `send()` calls in one process interleave their `chdir()` calls and each
+ends up tarring the other's directory.
+
+Pass `isolate_cwd=True` on every concurrent call site:
+
+```python
+output_json_filepath, output_mst_filepath = client.send(
+    ["/tmp/model.mps", "/tmp/model.main.prm"],
+    isolate_cwd=True,
+)
+```
+
+The resulting tarball is equivalent -- entries are flat in both modes -- and input
+files are no longer required to share a single directory. The default stays `False`
+so existing callers, including any that rely on the working-directory side effect,
+are unaffected.
+
+## Per-call logger
+
+`send()` streams the server's log lines through the module logger
+`solver_runner_client.client`. Pass `logger=` to send one submission's lines
+somewhere else -- useful to tell two concurrent submissions apart:
+
+```python
+probe_logger = logging.getLogger("solver_runner_client.client.probe")
+client.send(paths, logger=probe_logger, isolate_cwd=True)
+```
+
+Handlers attached to `solver_runner_client.client` keep receiving records from the
+child logger through normal logger propagation.
+
 ## relaxation file
 
 In order to use the feasibility relaxation feature, a JSON relaxation file is expected with this format:
@@ -164,3 +200,35 @@ client_logger.addHandler(MyHandler())
 client.send([os.path.join(os.getcwd(), "model.mps")])
 ```
 
+
+# Structured events on the log stream
+
+The runner emits two kinds of output on one channel: the solver's own text, and
+explicit machine-readable events. An event is a sentinel-prefixed, single-line JSON
+envelope:
+
+```
+@@PLANNY_LOG@@ {"v":1,"kind":"violations","level":"INFO","data":{"total":7}}
+```
+
+`solver_runner_client.events.parse_event` demultiplexes: `None` for ordinary solver
+text, an `Event` for an envelope, and `EventFormatError` when the sentinel is present
+but the payload is malformed. That last distinction is deliberate — a broken envelope
+is a bug to surface, not text to pass through.
+
+```python
+from solver_runner_client.client import send
+from solver_runner_client.events import parse_event
+
+output_json, output_mst = send(paths, frame_lines=True)
+```
+
+`frame_lines=True` is required to consume events: the sentinel is matched
+line-anchored, and the default chunked path can split an envelope across two log
+records, which is not recoverable. It also repairs two pre-existing fidelity losses in
+the default path — trailing newlines stripped at chunk boundaries (which glues adjacent
+lines together) and `UnicodeDecodeError` on a multi-byte character split across chunks.
+
+`tests/fixtures/envelopes.jsonl` is committed identically in solver-runner-server, so
+the encoder there and the decoder here stay in agreement without either repo depending
+on the other.

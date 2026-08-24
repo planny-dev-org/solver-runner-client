@@ -1,0 +1,7 @@
+{
+  "include": ["solver_runner_client"],
+  "exclude": [".venv", "**/__pycache__"],
+  "typeCheckingMode": "strict",
+  "reportMissingTypeStubs": false,
+  "pythonVersion": "3.11"
+}
