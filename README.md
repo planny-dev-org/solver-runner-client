@@ -200,3 +200,35 @@ client_logger.addHandler(MyHandler())
 client.send([os.path.join(os.getcwd(), "model.mps")])
 ```
 
+
+# Structured events on the log stream
+
+The runner emits two kinds of output on one channel: the solver's own text, and
+explicit machine-readable events. An event is a sentinel-prefixed, single-line JSON
+envelope:
+
+```
+@@PLANNY_LOG@@ {"v":1,"kind":"violations","level":"INFO","data":{"total":7}}
+```
+
+`solver_runner_client.events.parse_event` demultiplexes: `None` for ordinary solver
+text, an `Event` for an envelope, and `EventFormatError` when the sentinel is present
+but the payload is malformed. That last distinction is deliberate — a broken envelope
+is a bug to surface, not text to pass through.
+
+```python
+from solver_runner_client.client import send
+from solver_runner_client.events import parse_event
+
+output_json, output_mst = send(paths, frame_lines=True)
+```
+
+`frame_lines=True` is required to consume events: the sentinel is matched
+line-anchored, and the default chunked path can split an envelope across two log
+records, which is not recoverable. It also repairs two pre-existing fidelity losses in
+the default path — trailing newlines stripped at chunk boundaries (which glues adjacent
+lines together) and `UnicodeDecodeError` on a multi-byte character split across chunks.
+
+`tests/fixtures/envelopes.jsonl` is committed identically in solver-runner-server, so
+the encoder there and the decoder here stay in agreement without either repo depending
+on the other.

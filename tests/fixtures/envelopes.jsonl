@@ -1,0 +1,5 @@
+{"line": "@@PLANNY_LOG@@ {\"v\":1,\"kind\":\"violations\",\"level\":\"INFO\",\"data\":{\"sol\":0,\"total\":7,\"counts\":{\"coverage\":3,\"in_a_row\":4}}}", "kind": "violations", "level": "INFO", "data": {"sol": 0, "total": 7, "counts": {"coverage": 3, "in_a_row": 4}}, "truncated": false}
+{"line": "@@PLANNY_LOG@@ {\"v\":1,\"kind\":\"violations_final\",\"level\":\"INFO\",\"data\":{\"total\":0,\"counts\":{}}}", "kind": "violations_final", "level": "INFO", "data": {"total": 0, "counts": {}}, "truncated": false}
+{"line": "@@PLANNY_LOG@@ {\"v\":1,\"kind\":\"analysis_core\",\"level\":\"INFO\",\"data\":{\"version\":\"0.1.0\"}}", "kind": "analysis_core", "level": "INFO", "data": {"version": "0.1.0"}, "truncated": false}
+{"line": "@@PLANNY_LOG@@ {\"v\":1,\"kind\":\"violations\",\"level\":\"WARNING\",\"data\":{\"errors\":2,\"total\":5,\"counts\":{\"rest\":5}}}", "kind": "violations", "level": "WARNING", "data": {"errors": 2, "total": 5, "counts": {"rest": 5}}, "truncated": false}
+{"line": "@@PLANNY_LOG@@ {\"v\":1,\"kind\":\"violations\",\"level\":\"INFO\",\"data\":{},\"truncated\":true}", "kind": "violations", "level": "INFO", "data": {}, "truncated": true}

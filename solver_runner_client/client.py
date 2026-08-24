@@ -1,4 +1,3 @@
-import sys
 import io
 import os
 import argparse
@@ -8,10 +7,43 @@ import ssl
 import tarfile
 import datetime
 import logging
+from typing import List, Optional, Sequence, Tuple
 
 LOG = logging.getLogger(__name__)
 
 END_SEQUENCE = b"__ENDSEQUENCE__"
+OUTPUT_MARKER = b"output:"
+RECV_SIZE = 1024
+
+
+def _decode(chunk: bytes) -> str:
+    """Decode one complete log line.
+
+    ``errors="replace"`` matters only in the case that currently raises: the unframed
+    path decodes arbitrary byte boundaries, so a multi-byte UTF-8 character split
+    across two recv() chunks throws UnicodeDecodeError. Framing makes lines whole, and
+    replacement covers anything genuinely malformed on the wire.
+    """
+    return chunk.decode("utf-8", errors="replace")
+
+
+def _emit_lines(log: logging.Logger, buffer: bytes, *, flush: bool) -> bytes:
+    """Emit every complete line in ``buffer``; return the unterminated remainder.
+
+    Empty lines are emitted as empty records rather than skipped. The unframed path
+    logs whole chunks whose text already contains interior newlines, so a terminal
+    renders "a\n\nb" as three lines either way -- preserving the blanks is what keeps
+    the *rendered* stream identical.
+
+    With ``flush=True`` the trailing remainder is emitted too, for end of stream.
+    """
+    *complete, remainder = buffer.split(b"\n")
+    for line in complete:
+        log.info(_decode(line))
+    if flush and remainder:
+        log.info(_decode(remainder))
+        return b""
+    return remainder
 
 
 parser = argparse.ArgumentParser(
@@ -35,7 +67,13 @@ parser.add_argument("--relaxation_file_path", help="optional relaxation file (.j
 parser.add_argument("--mst_file_path", help="optional mip start file (.mst)")
 
 
-def send(input_file_abs_paths, *, logger=None, isolate_cwd=False):
+def send(
+    input_file_abs_paths: Sequence[str],
+    *,
+    logger: Optional[logging.Logger] = None,
+    isolate_cwd: bool = False,
+    frame_lines: bool = False,
+) -> Tuple[str, str]:
     """
     Send an execution request to the runner server and return the output paths.
 
@@ -53,6 +91,18 @@ def send(input_file_abs_paths, *, logger=None, isolate_cwd=False):
         isolate_cwd=True on *every* concurrent call site. The resulting tarball is
         equivalent -- entries are flat in both modes -- and as a side benefit
         input files are no longer required to share a single directory.
+    :param frame_lines: when True, emit one log record per line of server output
+        instead of one per recv() chunk. The default False keeps the historical
+        chunk behaviour, with one deliberate exception: undecodable bytes are
+        replaced rather than raising UnicodeDecodeError (see :func:`_decode`).
+
+        The concatenated text is identical either way and a terminal renders both
+        the same, because chunk records already contain interior newlines. What
+        changes is record segmentation, and with it two things that need whole
+        lines: machine-readable envelopes (see :mod:`solver_runner_client.events`)
+        cannot be matched if a line may arrive in two pieces, and decoding is only
+        safe once a line is whole -- the unframed path can split a multi-byte UTF-8
+        character across chunks and raise UnicodeDecodeError.
     :return: (output json path, output mst path)
     """
     log = logger if logger is not None else LOG
@@ -65,6 +115,12 @@ def send(input_file_abs_paths, *, logger=None, isolate_cwd=False):
     sock.connect((host, port))  # connect to the server
     client_socket = sock
     if server_cert_path:
+        if client_cert_path is None or key_path is None:
+            # Previously this reached ssl as None and raised an opaque TypeError.
+            raise ValueError(
+                "RUNNER_SERVER_CERT_PATH is set, so RUNNER_CLIENT_CERT_PATH and "
+                "RUNNER_CLIENT_KEY_PATH must be set too"
+            )
         context = ssl.create_default_context()
         context.load_verify_locations(server_cert_path)
         context.load_cert_chain(client_cert_path, key_path)
@@ -102,19 +158,35 @@ def send(input_file_abs_paths, *, logger=None, isolate_cwd=False):
     data = True
     output_sequence = False
     all_message = b""
+    log_buffer = b""
 
     # receive and log data received from remote server
     while data:
-        data = client_socket.recv(1024)
+        data = client_socket.recv(RECV_SIZE)
         if not output_sequence:
-            if b"output:" in data:
+            # Look for the marker across the boundary too: on the unframed path a
+            # marker split between two chunks is missed and the binary tarball gets
+            # logged as text. Extraction still works -- all_message is split below --
+            # which is why this has been invisible.
+            pending = log_buffer + data
+            if OUTPUT_MARKER in pending:
                 output_sequence = True
-                log.info(data.split(b"output:")[0].decode().rstrip("\n"))
+                text = pending.split(OUTPUT_MARKER)[0]
+                if frame_lines:
+                    _emit_lines(log, text, flush=True)
+                    log_buffer = b""
+                else:
+                    log.info(_decode(text).rstrip("\n"))
+            elif frame_lines:
+                log_buffer = _emit_lines(log, pending, flush=False)
             else:
-                log.info(data.decode().rstrip("\n"))
+                log.info(_decode(data).rstrip("\n"))
         all_message += data
 
-    output_file_content = all_message.split(b"output:")[-1]
+    if frame_lines and log_buffer:
+        _emit_lines(log, log_buffer, flush=True)
+
+    output_file_content = all_message.split(OUTPUT_MARKER)[-1]
     buffer = io.BytesIO(output_file_content)
     buffer.seek(0)
     archive = tarfile.open(fileobj=buffer, mode="r:gz")
@@ -130,7 +202,7 @@ if __name__ == "__main__":
     arguments = parser.parse_args()
 
     # flatten file paths
-    file_paths = [
+    file_paths: List[str] = [
         arguments.mps_file_path,
     ]
     if arguments.relaxation_file_path:
